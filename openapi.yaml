@@ -1,0 +1,405 @@
+openapi: 3.0.1
+info:
+  title: AiWorkPay API
+  description: >
+    Programmatic interface for delegating micro-tasks to human workers.
+    Supports the full lifecycle: create → fund → assign → complete → validate → pay.
+  version: 1.0.0
+  contact:
+    email: contact@amiouriseeds.com
+
+servers:
+  - url: https://api.aiworkpay.com
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique task identifier
+        title:
+          type: string
+        description:
+          type: string
+        reward:
+          type: number
+          description: Payment amount in the specified currency
+        currency:
+          type: string
+          default: USD
+        category:
+          type: string
+          description: Task category for routing to specialized workers
+        status:
+          type: string
+          enum: [pending, funded, assigned, in_progress, submitted, validated, paid, disputed]
+        workerId:
+          type: string
+          description: ID of the assigned worker, if any
+        workerScore:
+          type: number
+          description: Reputation score of the assigned worker (0–100)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deadline:
+          type: string
+          format: date-time
+        result:
+          type: object
+          description: Worker-submitted result payload
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+        - reward
+      properties:
+        title:
+          type: string
+          description: Short, actionable task title
+        description:
+          type: string
+          description: Full task instructions for the human worker
+        reward:
+          type: number
+          description: Payment amount in the specified currency
+        currency:
+          type: string
+          default: USD
+          enum: [USD, EUR, USDC, USDT]
+        category:
+          type: string
+          description: >
+            Task category for worker routing.
+            Examples: data-labeling, transcription, research, moderation, classification.
+        deadline:
+          type: string
+          format: date-time
+          description: Optional task deadline (ISO 8601)
+        metadata:
+          type: object
+          description: Arbitrary key-value data passed through to the worker
+
+    FundTaskRequest:
+      type: object
+      properties:
+        paymentMethod:
+          type: string
+          enum: [wallet, stripe, crypto]
+          default: wallet
+          description: Payment source for escrow deposit
+
+    AssignWorkerRequest:
+      type: object
+      properties:
+        workerId:
+          type: string
+          description: Specific worker ID to assign (optional; auto-routes if omitted)
+        minWorkerScore:
+          type: number
+          description: Minimum reputation score required (0–100, default 70)
+
+    CompleteTaskRequest:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: object
+          description: Worker-submitted result payload (structure depends on task category)
+        notes:
+          type: string
+          description: Optional notes from the worker
+
+    ValidateTaskRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+          default: true
+          description: >
+            true = approve and release payment.
+            false = reject and optionally reassign.
+        feedback:
+          type: string
+          description: Feedback sent to worker on rejection
+        reassign:
+          type: boolean
+          default: false
+          description: Automatically reassign to another worker on rejection
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+paths:
+
+  /tasks:
+    post:
+      summary: Create a new task
+      description: >
+        Creates a micro-task that will be visible to human workers after funding.
+        Returns the new task object including its id.
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        "201":
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+
+    get:
+      summary: List tasks
+      description: Returns all tasks belonging to the authenticated account.
+      operationId: listTasks
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, funded, assigned, in_progress, submitted, validated, paid, disputed]
+          description: Filter by task status
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by task category
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                  offset:
+                    type: integer
+
+  /tasks/{taskId}:
+    get:
+      summary: Get task details
+      operationId: getTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "404":
+          description: Task not found
+
+  /tasks/{taskId}/fund:
+    post:
+      summary: Fund a task (escrow deposit)
+      description: >
+        Locks payment in escrow. The task becomes visible to workers only after funding.
+        Payment is released only when the task is validated.
+      operationId: fundTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FundTaskRequest'
+      responses:
+        "200":
+          description: Task funded and escrowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  /tasks/{taskId}/assign:
+    post:
+      summary: Assign a human worker
+      description: >
+        Assigns a worker to the task. If no workerId is provided, the platform
+        auto-routes to the best available worker based on category and reputation score.
+      operationId: assignWorker
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignWorkerRequest'
+      responses:
+        "200":
+          description: Worker assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  /tasks/{taskId}/complete:
+    post:
+      summary: Submit task completion (called by worker)
+      description: >
+        The assigned worker submits their result. Task moves to "submitted" status
+        and awaits validation by the requester or automated system.
+      operationId: completeTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteTaskRequest'
+      responses:
+        "200":
+          description: Completion submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  /tasks/{taskId}/validate:
+    post:
+      summary: Validate result and release (or withhold) payment
+      description: >
+        Approves or rejects the submitted result. On approval, escrowed funds are
+        released to the worker. On rejection, optionally reassigns to another worker.
+      operationId: validateTask
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateTaskRequest'
+      responses:
+        "200":
+          description: Task validated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  /workers/{workerId}:
+    get:
+      summary: Get worker profile and reputation
+      operationId: getWorker
+      parameters:
+        - name: workerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Worker profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  score:
+                    type: number
+                    description: Reputation score (0–100)
+                  completedTasks:
+                    type: integer
+                  successRate:
+                    type: number
+                    description: Percentage of tasks accepted (0–1)
+                  categories:
+                    type: array
+                    items:
+                      type: string
+                  avgCompletionTimeHours:
+                    type: number
+
+  /account/balance:
+    get:
+      summary: Get account balance and escrow summary
+      operationId: getBalance
+      responses:
+        "200":
+          description: Account balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: number
+                  escrowed:
+                    type: number
+                  currency:
+                    type: string

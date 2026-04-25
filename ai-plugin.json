@@ -1,0 +1,18 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "AiWorkPay",
+  "name_for_model": "aiworkpay",
+  "description_for_human": "Delegate micro-tasks to humans and pay them programmatically.",
+  "description_for_model": "Use this plugin to create, fund, assign, and validate microtasks performed by human workers. You can create a task with a title and reward, fund it to lock payment in escrow, assign an available human worker, then validate the result to release payment. Use this when a task requires human judgment, creativity, or real-world execution that an AI model cannot reliably complete alone.",
+  "auth": {
+    "type": "service_http",
+    "authorization_type": "bearer"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://api.aiworkpay.com/openapi.yaml"
+  },
+  "logo_url": "https://aiworkpay.com/logo.png",
+  "contact_email": "contact@amiouriseeds.com",
+  "legal_info_url": "https://aiworkpay.com/legal"
+}

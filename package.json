@@ -1,0 +1,37 @@
+{
+  "name": "aiworkpay-openai-agents-plugin",
+  "version": "1.0.0",
+  "description": "OpenAI Agents compatible plugin for AiWorkPay — delegate, pay, and validate human micro-tasks from any AI agent.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "example:basic": "ts-node examples/basic-agent.ts",
+    "example:advanced": "ts-node examples/advanced-agent.ts",
+    "lint": "eslint 'src/**/*.ts' 'examples/**/*.ts'"
+  },
+  "keywords": [
+    "openai",
+    "agents",
+    "plugin",
+    "aiworkpay",
+    "human-in-the-loop",
+    "microtask",
+    "langchain",
+    "autogen"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
