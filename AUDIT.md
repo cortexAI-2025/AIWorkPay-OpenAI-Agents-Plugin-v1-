@@ -23,7 +23,7 @@ partir de l'OpenAPI du backend plutôt que de réparer celui-ci.
 ## Compatibilité OpenAI réellement vérifiée
 
 OpenAI Agents SDK 0.24.0 → serveur MCP AIWorkPay en Streamable HTTP avec clé Bearer : 13 outils listés, `get_account`
-appelé avec succès (voir `docs/INTEGRATIONS.md` du dépôt `aiworkpay-mcp-server`). ChatGPT (applications) n'est **pas**
+appelé avec succès, sur une instance de test locale (le serveur MCP hébergé n'est pas encore ouvert au public). ChatGPT (applications) n'est **pas**
 compatible en l'état : il exige OAuth.
 
 ## Décisions laissées au propriétaire
